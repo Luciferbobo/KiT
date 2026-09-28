@@ -28,8 +28,6 @@ KiT casts multi-horizon candlestick forecasting as conditional path generation v
 
 <div align="center">
   
-**Table 1. Return forecasting.**
-
 <table width="100%">
 <thead>
 <tr>
@@ -180,9 +178,10 @@ KiT casts multi-horizon candlestick forecasting as conditional path generation v
 </tbody>
 </table>
 
+Table 1. RankIC of Return forecasting.
+
 <br>
 
-**Table 2. Volatility prediction** 
 
 <table width="100%">
 <thead>
@@ -333,6 +332,8 @@ KiT casts multi-horizon candlestick forecasting as conditional path generation v
 </tr>
 </tbody>
 </table>
+
+Table 2. RankIC of Volatility prediction
 
 </div>
 
