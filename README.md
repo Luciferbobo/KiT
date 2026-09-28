@@ -14,6 +14,8 @@ KiT casts multi-horizon candlestick forecasting as conditional path generation v
 
 ### Backtest
 
+### Return & volatility forecasting
+
 ## Get started
 
 code will be available soon.
