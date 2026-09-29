@@ -1,5 +1,5 @@
 
-<h2 align="center">KiT: A Foundation Model for K-Line Time-Series Forecasting via Diffusion Transformers</h2>
+<h2 align="center">KiT: A Foundation Model for Candlestick Time-Series Forecasting via Diffusion Transformers</h2>
 
 > KiT is a diffusion-based foundation model for candlestick (K-line) forecasting. It is trained on billions of bars spanning U.S. equities, Chinese A-shares, and cryptocurrencies across seven granularities, from one minute to one day, and achieves SOTA performance in both return forecasting and volatility prediction.
 
