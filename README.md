@@ -5,7 +5,9 @@
 <div align="center">
   
 [![arXiv](https://img.shields.io/badge/arXiv-2609.34507-b31b1b.svg)](https://arxiv.org/abs/2609.34507)
-
+<a href="./LICENSE">
+  <img src="https://img.shields.io/badge/License-AGPL_v3-green.svg" alt="License: AGPL-3.0">
+</a>
 </div>
 
 
