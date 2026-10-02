@@ -499,12 +499,10 @@ python eval/backtest.py
 python eval/backtest.py --top 20 --slip 5 --scales 5m,15m,1h
 ```
 
-Options (defaults in parentheses): `--top` (10) stocks held, `--slip` (10) slippage per side in bp, `--scales` (all scales found in `results/infer_for_eval/raw/`).
-
 Rules, applied independently to each timescale:
 
 - **Signal**: at every anchor, rank the stocks by the mean over the K sampled paths of the predicted window return.
-- **Portfolio**: hold the top N with equal weight from the anchor close to the end of the forecast window, then rebalance at the next anchor. Windows do not overlap, so the returns of consecutive windows are chained. Stocks that stay in the top N are kept without trading. For 1m (half-day windows) everything is sold at the window end and bought again at the next close.
+- **Portfolio**: hold the top N with equal weight from the anchor close to the end of the forecast window, then rebalance at the next anchor. Windows do not overlap, so the returns of consecutive windows are chained. Stocks that stay in the top N are kept without trading.
 - **Limit-up / limit-down**: a stock that closes limit-up at the anchor (or is in its first 5 listing days) cannot be bought and is skipped. A stock that is limit-down at the last bar of the window cannot be sold and is carried into the next window. Limits are 10% (20% for 300/301/688), a stock within 0.5% of the limit counts as sealed. ST stocks (5%) are not modelled.
 - **T+1**: positions are bought at the close and sold in a later window, so it always holds.
 - **Costs**: commission 2.5bp and transfer fee 0.1bp per side, stamp tax 5bp on sell, plus slippage (10bp per side by default). Costs are charged on the traded amount only. Lot size and market impact are ignored.
