@@ -402,7 +402,7 @@ huggingface-cli download Lucifer744/KiT_data_demo --local-dir data/ --repo-type 
 
 Alternatively, you can manually download the files from the Hugging Face links above and place them in the corresponding directories.
 
-## 2. Using Your Own Data
+### Using Your Own Data
 
 The demo data includes 100 stocks. To use your own data:
 
