@@ -499,7 +499,7 @@ python eval/backtest.py
 python eval/backtest.py --top 20 --slip 5 --scales 5m,15m,1h
 ```
 
-Rules, applied independently to each timescale:
+Rules:
 
 - **Signal**: at every anchor, rank the stocks by the mean over the K sampled paths of the predicted window return.
 - **Portfolio**: hold the top N with equal weight from the anchor close to the end of the forecast window, then rebalance at the next anchor. Windows do not overlap, so the returns of consecutive windows are chained. Stocks that stay in the top N are kept without trading.
