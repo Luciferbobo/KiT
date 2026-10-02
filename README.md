@@ -1,5 +1,5 @@
 
-<h2 align="center">KiT: A Foundation Model for Candlestick Time-Series Forecasting via Diffusion Transformers</h2>
+<h1 align="center">KiT: A Foundation Model for Candlestick Time-Series Forecasting via Diffusion Transformers</h1>
 
 
 <div align="center">
@@ -14,27 +14,21 @@
 > KiT is a diffusion-based foundation model for candlestick (K-line) forecasting. It is trained on billions of bars spanning U.S. equities, Chinese A-shares, and cryptocurrencies across seven granularities, from one minute to one day, and achieves SOTA performance in both return forecasting and volatility prediction.
 
 
-## Intro
+# Intro
 
 ![KiT architecture, sequence encoding, and KiT block](assets/main.png)
 
 KiT casts multi-horizon candlestick forecasting as conditional path generation via flow matching. The overall pipeline is illustrated above: raw OHLCV bars are encoded into a five-dimensional log-ratio state $x_t=(r_{\mathrm{gap}}, r_{\mathrm{body}}, r_{\mathrm{up}}, r_{\mathrm{dn}}, v_t)$, which is the state the diffusion model operates on. History and horizon are assembled into a single token sequence and processed by the KiT backbone, the history is returned bit-identical and only the forecast span is filled in with generated bars. In KiT block, signals that are constant over the window modulate every layer through a shared AdaLN trunk, whereas signals that vary per bar are added directly to the token embeddings.
 
-## Prediciton Demo
+# Prediciton Demo
 
-### K-line forecasting
-
-<div align="center">
-<img src="assets/forecast_cases_four.png" width="70%">
-</div>
-
-### Backtest
+## Backtest
 
 <div align="center">
 <img src="assets/backtest_two_scales.png" width="70%">
 </div>
 
-### Return & volatility forecasting
+## Return & volatility forecasting
 
 <div align="center">
   
@@ -348,7 +342,196 @@ Table 2. RankIC of Volatility prediction
 </div>
 
 
-## Get started
+# Get started
 
-code will be available soon.
+## 1. Setup
 
+### Requirements
+
+- A CUDA GPU for inference (6GB+ VRAM recommended)
+- Python >= 3.10
+- PyTorch >= 2.4 (with CUDA support)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/Luciferbobo/KiT.git
+cd KiT
+```
+
+2. Create and activate a conda environment:
+
+```bash
+conda create -n kit python=3.13 -y
+conda activate kit
+```
+
+3. Install dependencies:
+
+```bash
+# Install PyTorch with CUDA support (adjust cuda version as needed)
+pip install torch>=2.4 --index-url https://download.pytorch.org/whl/cu118
+
+# Install other requirements
+pip install -r requirements.txt
+```
+
+### Download Model and Data
+
+You can download the pre-trained model checkpoint and demo data from:
+
+|  | Location | Hugging Face Link |
+|---|---|---|
+| Demo data  | `data/` | [KiT_data_demo](https://huggingface.co/datasets/Lucifer744/KiT_data_demo) |
+| Model checkpoint | `ckpt/` | [KiT_model](https://huggingface.co/Lucifer744/KiT_model) |
+
+**Quick download commands:**
+
+```bash
+# Install huggingface-cli if not already installed
+pip install huggingface_hub
+
+# Download the model checkpoint
+huggingface-cli download Lucifer744/KiT_model --local-dir ckpt/
+
+# Download the demo data
+huggingface-cli download Lucifer744/KiT_data_demo --local-dir data/ --repo-type dataset
+```
+
+Alternatively, you can manually download the files from the Hugging Face links above and place them in the corresponding directories.
+
+## 2. Using Your Own Data
+
+The demo data includes 100 stocks. To use your own data:
+
+1. **Data format**: Each stock needs parquet files per timescale (1m, 5m, 15m, 30m, 1h, 2h, 1d) with columns:
+   - `date`: timestamp (datetime64[ns])
+   - `open`, `high`, `low`, `close`: prices (float64)
+   - `volume`: trading volume (float64)
+
+2. **Directory structure**:
+   ```
+   data/
+   ├── instruments.json       # List of instruments with metadata
+   ├── stats.json            # Normalization statistics
+   ├── trade_dates.csv       # Trading calendar
+   └── ashare/               # Or your market name
+       ├── 000001.SZ_1m.parquet
+       ├── 000001.SZ_5m.parquet
+       └── ...
+   ```
+
+3. **instruments.json** should contain:
+   ```json
+   {
+     "000001.SZ": {
+       "name": "xxxx",
+       "market": "SZ",
+       "sector": "xxx",
+       "list_date": "1991-04-03"
+     }
+   }
+   ```
+
+Refer to the demo data structure for the exact format requirements.
+
+## 3. Train
+
+TBD
+
+## 4. Eval
+
+
+### (1) Forecast a specific stock and time
+
+A case is `code,timescale,anchor`. The anchor is the end of the history window: the model reads the most recent `Lc` bars up to the anchor and predicts the next `Lh` bars.
+
+```bash
+python eval/infer_for_pred.py
+python eval/infer_for_pred.py --case 601899.SH,5m,2026-03-04 --case 300750.SZ,30m,"2026-03-10 11:30"
+```
+
+Outputs go to `results/infer_for_pred/`. Plot legend: grey candles = tail of the history; red/green = real future; blue/purple = representative predicted path; blue bands = q05–q95 and q25–q75 of the K paths' close.
+
+Window sizes are fixed by the model:
+
+| Timescale | 1m | 5m | 15m | 30m | 1h | 2h | 1d |
+|---|---|---|---|---|---|---|---|
+| History `Lc` | 1200 | 960 | 800 | 640 | 400 | 360 | 250 |
+| Horizon `Lh` | 120 | 96 | 64 | 40 | 20 | 20 | 20 |
+
+We provide visualization for the prediction results. Your prediction results will be automatically plotted, and it should look like this:
+
+<div align="center">
+<img src="results/infer_for_pred/300591.SZ_5m_20260123.png" width="32%">
+<img src="results/infer_for_pred/600989.SH_15m_20260206.png" width="32%">
+<img src="results/infer_for_pred/300260.SZ_30m_20260126.png" width="32%">
+<br>
+<img src="results/infer_for_pred/300733.SZ_1h_20260209.png" width="32%">
+<img src="results/infer_for_pred/603590.SH_2h_20260119.png" width="32%">
+<img src="results/infer_for_pred/300368.SZ_1d_20260105.png" width="32%">
+</div>
+
+
+### (2) Inference over the validation set
+
+Runs all 100 stocks, all 7 timescales, all anchors in the val window (2026-01-01 to 2026-04-10)
+
+```bash
+python eval/infer_for_eval.py
+python eval/cal_metrics.py
+```
+
+| Task | Prediction | Target |
+|---|---|---|
+| return | mean over K paths of the sum of per-bar log returns | sum of real per-bar log returns |
+| vol | mean over K paths of the std (ddof=1) of per-bar log returns | std of real per-bar log returns |
+| price | mean over K paths of the cumulative log return vs. anchor close | real cumulative log return |
+
+### (3) Backtest
+
+After inference over the whole validation set has finished (`results/infer_for_eval/raw/` is filled), if you are interested in real-world trading, we provide a backtest framework. Run the backtest directly on it:
+
+```bash
+python eval/backtest.py
+python eval/backtest.py --top 20 --slip 5 --scales 5m,15m,1h
+```
+
+Options (defaults in parentheses): `--top` (10) stocks held, `--slip` (10) slippage per side in bp, `--scales` (all scales found in `results/infer_for_eval/raw/`).
+
+Rules, applied independently to each timescale:
+
+- **Signal**: at every anchor, rank the stocks by the mean over the K sampled paths of the predicted window return.
+- **Portfolio**: hold the top N with equal weight from the anchor close to the end of the forecast window, then rebalance at the next anchor. Windows do not overlap, so the returns of consecutive windows are chained. Stocks that stay in the top N are kept without trading. For 1m (half-day windows) everything is sold at the window end and bought again at the next close.
+- **Limit-up / limit-down**: a stock that closes limit-up at the anchor (or is in its first 5 listing days) cannot be bought and is skipped. A stock that is limit-down at the last bar of the window cannot be sold and is carried into the next window. Limits are 10% (20% for 300/301/688), a stock within 0.5% of the limit counts as sealed. ST stocks (5%) are not modelled.
+- **T+1**: positions are bought at the close and sold in a later window, so it always holds.
+- **Costs**: commission 2.5bp and transfer fee 0.1bp per side, stamp tax 5bp on sell, plus slippage (10bp per side by default). Costs are charged on the traded amount only. Lot size and market impact are ignored.
+- **Benchmarks** over the same period: equal-weight mean and median of the 100 stocks per window (no costs), and CSI500 (daily closes, downloaded once with `akshare` and cached in `data/csi500_daily.csv`; if the download fails the benchmark is left out).
+
+Results are written to `results/backtest_results/`
+
+<div align="center">
+<img src="results/backtest_results/backtest_top10.png" width="90%">
+</div>
+
+---
+
+## Citation
+
+If you use KiT in your research, please cite:
+
+```bibtex
+@article{kit2026,
+  title={KiT: A Foundation Model for Candlestick Time-Series Forecasting via Diffusion Transformers},
+  author={Boyu Zhang, Haorui Li},
+  journal={arXiv preprint arXiv:2609.34507},
+  year={2026}
+}
+```
+
+
+## License
+
+Released under the [AGPL-3.0](LICENSE) license.
