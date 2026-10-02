@@ -1,0 +1,6 @@
+torch>=2.4
+numpy
+pandas
+pyarrow
+matplotlib   # plots written by eval/infer_for_pred.py and eval/backtest.py
+akshare      # only to download CSI500 for eval/backtest.py (optional)
