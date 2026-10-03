@@ -400,11 +400,9 @@ huggingface-cli download Lucifer744/KiT_model --local-dir ckpt/
 huggingface-cli download Lucifer744/KiT_data_demo --local-dir data/ --repo-type dataset
 ```
 
-Alternatively, you can manually download the files from the Hugging Face links above and place them in the corresponding directories.
-
 ### Using Your Own Data
 
-The demo data includes 100 stocks. To use your own data:
+The demo data includes 100 stocks. If you want to use your own data instead:
 
 1. **Data format**: Each stock needs parquet files per timescale (1m, 5m, 15m, 30m, 1h, 2h, 1d) with columns:
    - `date`: timestamp (datetime64[ns])
