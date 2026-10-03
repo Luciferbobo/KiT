@@ -13,22 +13,36 @@
 
 > KiT is a diffusion-based foundation model for candlestick (K-line) forecasting. It is trained on billions of bars spanning U.S. equities, Chinese A-shares, and cryptocurrencies across seven granularities, from one minute to one day, and achieves SOTA performance in both return forecasting and volatility prediction.
 
+## 📑 Todo List
+- Train
+    - [ ] training infra
+    - [ ] training code
+- Eval 
+    - [x] specific stock forecasting
+    - [x] inference over the validation set
+    - [x] simple backtest strategy
+- Data
+    - [x] 100 stocks demo data 
+    - [ ] data preparation scripts
+- Model
+    - [x] KiT-L: step_market_284M.pt
+    - [x] KiT-L: step_market_284M_train260410.pt
 
-# Intro
+## 📖 Intro
 
 ![KiT architecture, sequence encoding, and KiT block](assets/main.png)
 
 KiT casts multi-horizon candlestick forecasting as conditional path generation via flow matching. The overall pipeline is illustrated above: raw OHLCV bars are encoded into a five-dimensional log-ratio state $x_t=(r_{\mathrm{gap}}, r_{\mathrm{body}}, r_{\mathrm{up}}, r_{\mathrm{dn}}, v_t)$, which is the state the diffusion model operates on. History and horizon are assembled into a single token sequence and processed by the KiT backbone, the history is returned bit-identical and only the forecast span is filled in with generated bars. In KiT block, signals that are constant over the window modulate every layer through a shared AdaLN trunk, whereas signals that vary per bar are added directly to the token embeddings.
 
-# Prediciton Demo
+## 💹 Prediciton Demo
 
-## Backtest
+### Backtest
 
 <div align="center">
 <img src="assets/backtest_two_scales.png" width="70%">
 </div>
 
-## Return & volatility forecasting
+### Return & volatility forecasting
 
 <div align="center">
   
@@ -342,17 +356,17 @@ Table 2. RankIC of Volatility prediction
 </div>
 
 
-# Get started
+## 🚀 Get started
 
-## 1. Setup
+### 1. Setup
 
-### Requirements
+#### Requirements
 
 - A CUDA GPU for inference (6GB+ VRAM recommended)
 - Python >= 3.10
 - PyTorch >= 2.4 (with CUDA support)
 
-### Installation
+#### Installation
 
 1. Clone the repository:
 
@@ -378,7 +392,7 @@ pip install torch>=2.4 --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 ```
 
-### Download Model and Data
+#### Download Model and Data
 
 You can download the pre-trained model checkpoint and demo data from:
 
@@ -386,6 +400,14 @@ You can download the pre-trained model checkpoint and demo data from:
 |---|---|---|
 | Demo data  | `data/` | [KiT_data_demo](https://huggingface.co/datasets/Lucifer744/KiT_data_demo) |
 | Model checkpoint | `ckpt/` | [KiT_model](https://huggingface.co/Lucifer744/KiT_model) |
+
+Currently, there are two versions of the KiT available. See [KiT_model](https://huggingface.co/Lucifer744/KiT_model) for more details.
+
+|Model| Training range | Ckpt Name |
+|---|---|---|
+| KiT-L | 2016-01-01 to 2025-12-31 | step_market_284M.pt |
+| KiT-L | 2016-01-01 to 2026-04-10 | step_market_284M_train260410.pt |
+
 
 **Quick download commands:**
 
@@ -400,7 +422,7 @@ huggingface-cli download Lucifer744/KiT_model --local-dir ckpt/
 huggingface-cli download Lucifer744/KiT_data_demo --local-dir data/ --repo-type dataset
 ```
 
-### Using Your Own Data
+#### Using Your Own Data
 
 The demo data includes 100 stocks. If you want to use your own data instead:
 
@@ -435,14 +457,14 @@ The demo data includes 100 stocks. If you want to use your own data instead:
 
 Refer to the demo data structure for the exact format requirements.
 
-## 3. Train
+### 3. Train
 
 TBD
 
-## 4. Eval
+### 4. Eval
 
 
-### (1) Forecast a specific stock and time
+#### (1) Forecast a specific stock and time
 
 A case is `code,timescale,anchor`. The anchor is the end of the history window: the model reads the most recent `Lc` bars up to the anchor and predicts the next `Lh` bars.
 
@@ -473,7 +495,7 @@ We provide visualization for the prediction results. Your prediction results wil
 </div>
 
 
-### (2) Inference over the validation set
+#### (2) Inference over the validation set
 
 Runs all 100 stocks, all 7 timescales, all anchors in the val window (2026-01-01 to 2026-04-10)
 
@@ -488,7 +510,7 @@ python eval/cal_metrics.py
 | vol | mean over K paths of the std (ddof=1) of per-bar log returns | std of real per-bar log returns |
 | price | mean over K paths of the cumulative log return vs. anchor close | real cumulative log return |
 
-### (3) Backtest
+#### (3) 💰 Backtest
 
 After inference over the whole validation set has finished (`results/infer_for_eval/raw/` is filled), if you are interested in real-world trading, we provide a backtest framework. Run the backtest directly on it:
 
