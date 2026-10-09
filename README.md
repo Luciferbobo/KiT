@@ -542,7 +542,7 @@ If you use KiT in your research, please cite:
 
 ```bibtex
 @article{kit2026,
-  title={KiT: A Foundation Model for Candlestick Time-Series Forecasting via Diffusion Transformers},
+  title={KiT: A Foundation Model for Financial Time-Series Forecasting using Diffusion Transformers},
   author={Boyu Zhang, Haorui Li},
   journal={arXiv preprint arXiv:2609.34507},
   year={2026}
