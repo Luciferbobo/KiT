@@ -15,15 +15,15 @@
 
 ## 📑 Todo List
 - Train
-    - [ ] training infra
-    - [ ] training code
+    - [x] training infra
+    - [x] training code
 - Eval 
     - [x] specific stock forecasting
     - [x] inference over the validation set
     - [x] simple backtest strategy
 - Data
     - [x] 100 stocks demo data 
-    - [ ] data preparation scripts
+    - [x] data preparation scripts
 - Model
     - [x] KiT-L: step_market_284M.pt
     - [x] KiT-L: step_market_284M_train260410.pt
@@ -459,7 +459,48 @@ Refer to the demo data structure for the exact format requirements.
 
 ### 3. Train
 
-TBD
+The training stack lives in `kit_v1/train/` (flow-matching objective, EMA, LR
+schedule, checkpointing, DDP/FSDP) with the data pipeline in `kit_v1/data/`. It
+trains the same `KlineDiT` the released checkpoints use and writes checkpoints
+directly consumable by the eval scripts.
+
+First build the data tree (parquet + `instruments.json` / `stats.json` /
+`trade_dates.csv`):
+
+```bash
+python scripts/prepare_data.py --raw-root raw/ashare_1m --out data --market ashare
+```
+
+Then train:
+
+```bash
+# CPU smoke test (tiny model, a few steps)
+python train.py --preset tiny --data-root data --out-dir runs/tiny
+
+# one GPU
+python train.py --config configs/dit_300m.yaml --data-root data --out-dir runs/dit_300m
+
+# multi-GPU / multi-node, FSDP
+torchrun --nproc_per_node=8 train.py --config configs/dit_300m.yaml \
+    --data-root data --out-dir runs/dit_300m
+```
+
+Any config field can be overridden with `--set section.key=value`, e.g.
+`--set train.total_steps=400000 --set data.train_end=2023-12-31`. Checkpoints are
+written to `<out-dir>/latest.pt` (plus periodic `step_*.pt`) and can be passed to
+the eval scripts with `--ckpt`. See [`kit_v1/train/README.md`](kit_v1/train/README.md)
+and [`scripts/README.md`](scripts/README.md) for the full list of knobs.
+
+To adapt a released checkpoint to your own data (LoRA / head-only / full
+fine-tune) and produce a zero-shot-vs-fine-tuned quant report (IC/RankIC tables,
+quintile charts, long-short equity curve), see
+[`finetune/README.md`](finetune/README.md).
+
+> Note: the original training code was not part of the public release. This
+> training stack is a faithful reconstruction from the released model, the
+> config dataclasses and the inference/flow conventions; the model, features,
+> normalisation and flow objective match inference bit-for-bit (see
+> `kit_v1/train/README.md` for details).
 
 ### 4. Eval
 
