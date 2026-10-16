@@ -8,6 +8,7 @@
 <a href="./LICENSE">
   <img src="https://img.shields.io/badge/License-AGPL_v3-green.svg" alt="License: AGPL-3.0">
 </a>
+<a href="./assets/group_qr.jpg"><img src="https://img.shields.io/badge/WeChat-KiT交流群-07C160?logo=wechat&logoColor=white" alt="WeChat"></a>
 </div>
 
 
@@ -549,6 +550,17 @@ If you use KiT in your research, please cite:
 }
 ```
 
+## 💬 Community
+
+Welcome to join the KiT WeChat group! If the group QR code has expired, add the assistant and we'll invite you. 
+
+<div align="center">
+<img src="assets/group_qr.jpg" width="200" alt="KiT WeChat group">
+&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="assets/assitant.jpg" width="200" alt="KiT assistant">
+<br>
+<sub>WeChat Group &nbsp;|&nbsp; Assistant</sub>
+</div>
 
 ## License
 
