@@ -8,7 +8,7 @@
 <a href="./LICENSE">
   <img src="https://img.shields.io/badge/License-AGPL_v3-green.svg" alt="License: AGPL-3.0">
 </a>
-<a href="./assets/group_qr.jpg"><img src="https://img.shields.io/badge/WeChat-KiT交流群-07C160?logo=wechat&logoColor=white" alt="WeChat"></a>
+<a href="./assets/group_qr.jpg"><img src="https://img.shields.io/badge/WeChat-KiT Group-07C160?logo=wechat&logoColor=white" alt="WeChat"></a>
 </div>
 
 
