@@ -15,9 +15,9 @@
 
 > KiT is a diffusion-based foundation model for candlestick (K-line) forecasting. It is trained on billions of bars spanning U.S. equities, Chinese A-shares, and cryptocurrencies across seven granularities, from one minute to one day, and achieves SOTA performance in both return forecasting and volatility prediction.
 
-## Live Prediction
+## 💹 Live Prediction
 
-The KiT research demo shows live probabilistic candlestick forecasts at [https://trading.etfnav.org/?lang=en](https://trading.etfnav.org/?lang=en).
+The KiT research demo shows live probabilistic candlestick forecasts at 👉 [live prediction](https://trading.etfnav.org/?lang=en).
 
 ## 📑 Todo List
 - Train
@@ -40,7 +40,7 @@ The KiT research demo shows live probabilistic candlestick forecasts at [https:/
 
 KiT casts multi-horizon candlestick forecasting as conditional path generation via flow matching. The overall pipeline is illustrated above: raw OHLCV bars are encoded into a five-dimensional log-ratio state $x_t=(r_{\mathrm{gap}}, r_{\mathrm{body}}, r_{\mathrm{up}}, r_{\mathrm{dn}}, v_t)$, which is the state the diffusion model operates on. History and horizon are assembled into a single token sequence and processed by the KiT backbone, the history is returned bit-identical and only the forecast span is filled in with generated bars. In KiT block, signals that are constant over the window modulate every layer through a shared AdaLN trunk, whereas signals that vary per bar are added directly to the token embeddings.
 
-## 💹 Prediciton Demo
+## 📈 Paper Results
 
 ### Backtest
 
@@ -516,7 +516,7 @@ python eval/cal_metrics.py
 | vol | mean over K paths of the std (ddof=1) of per-bar log returns | std of real per-bar log returns |
 | price | mean over K paths of the cumulative log return vs. anchor close | real cumulative log return |
 
-#### (3) 💰 Backtest
+#### (3) 💰 Your own backtest
 
 After inference over the whole validation set has finished (`results/infer_for_eval/raw/` is filled), if you are interested in real-world trading, we provide a backtest framework. Run the backtest directly on it:
 
