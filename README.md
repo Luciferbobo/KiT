@@ -17,7 +17,9 @@
 
 ## 💰 Live Prediction
 
-The KiT research demo shows live probabilistic candlestick forecasts at 👉 [live prediction](https://trading.etfnav.org/?lang=en).
+We provide live candlestick forecasts from KiT on some stocks. 👉 [View live predictions](https://trading.etfnav.org/?lang=en)
+
+> ⚠️ For research purposes only. Not financial advice.
 
 ## 📑 Todo List
 - Train
