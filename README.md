@@ -9,10 +9,15 @@
   <img src="https://img.shields.io/badge/License-AGPL_v3-green.svg" alt="License: AGPL-3.0">
 </a>
 <a href="./assets/group_qr.jpg"><img src="https://img.shields.io/badge/WeChat-KiT Group-07C160?logo=wechat&logoColor=white" alt="WeChat"></a>
+<a href="https://trading.etfnav.org/?lang=en"><img src="https://img.shields.io/badge/Live_Prediction-Demo-2563EB" alt="Live Prediction"></a>
 </div>
 
 
 > KiT is a diffusion-based foundation model for candlestick (K-line) forecasting. It is trained on billions of bars spanning U.S. equities, Chinese A-shares, and cryptocurrencies across seven granularities, from one minute to one day, and achieves SOTA performance in both return forecasting and volatility prediction.
+
+## Live Prediction
+
+The KiT research demo shows live probabilistic candlestick forecasts at [https://trading.etfnav.org/?lang=en](https://trading.etfnav.org/?lang=en).
 
 ## 📑 Todo List
 - Train
@@ -552,7 +557,7 @@ If you use KiT in your research, please cite:
 
 ## 💬 Community
 
-Welcome to join the KiT WeChat group! If the group QR code has expired, add the assistant and we'll invite you. 
+Welcome to join the KiT WeChat group! The group QR code below is valid until 20 November 2026. If it has expired, add the assistant and we'll invite you. 
 
 <div align="center">
 <img src="assets/group_qr.jpg" width="200" alt="KiT WeChat group">
