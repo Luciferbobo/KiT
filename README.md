@@ -372,9 +372,9 @@ Table 2. RankIC of Volatility prediction
 
 #### Requirements
 
-- A CUDA GPU for inference (6GB+ VRAM recommended)
+- A CUDA GPU for inference (6GB+ VRAM recommended), or Apple silicon with an MPS-enabled PyTorch build
 - Python >= 3.10
-- PyTorch >= 2.4 (with CUDA support)
+- PyTorch >= 2.4 with support for the selected device
 
 #### Installation
 
@@ -392,11 +392,11 @@ conda create -n kit python=3.13 -y
 conda activate kit
 ```
 
-3. Install dependencies:
+3. Install dependencies. On Apple silicon, skip the CUDA-specific command and install the requirements from PyPI.
 
 ```bash
 # Install PyTorch with CUDA support (adjust cuda version as needed)
-pip install torch>=2.4 --index-url https://download.pytorch.org/whl/cu118
+pip install "torch>=2.4" --index-url https://download.pytorch.org/whl/cu118
 
 # Install other requirements
 pip install -r requirements.txt
@@ -482,6 +482,16 @@ A case is `code,timescale,anchor`. The anchor is the end of the history window: 
 python eval/infer_for_pred.py
 python eval/infer_for_pred.py --case 601899.SH,5m,2026-03-04 --case 300750.SZ,30m,"2026-03-10 11:30"
 ```
+
+On Apple silicon, opt in to FP32 acceleration for KiT-L daily forecasts:
+
+```bash
+python eval/infer_for_pred.py --apple-fp32 --case 300368.SZ,1d,2026-01-05 --paths 16 --steps 32 --seed 6
+```
+
+The Metal kernels require a PyTorch build with `torch.mps.compile_shader` (tested with PyTorch 2.15.0). The optimized sampler supports one complete 250-bar daily window, a 20-bar horizon, Euler integration and guidance weights of 1. Other cases use the regular MPS sampler. Each full group of 16 independent paths uses up to four CPU paths and runs the rest on the GPU. `--apple-cpu-paths 0` selects GPU-only execution. Native CPU operations are optional and compile on first use with Apple's C++ compiler. Without them the optimized sampler uses the GPU. The selected backend and actual path counts are recorded in `infer_meta.json`.
+
+For a short, paired FP32 comparison on the bundled daily example, run `python scripts/benchmark_apple_fp32.py`. The default benchmark times one Euler step after warm-up. Use `--steps 32` to time a complete forecast.
 
 Outputs go to `results/infer_for_pred/`. Plot legend: grey candles = tail of the history; red/green = real future; blue/purple = representative predicted path; blue bands = q05–q95 and q25–q75 of the K paths' close.
 
