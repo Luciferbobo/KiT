@@ -520,6 +520,8 @@ python eval/cal_metrics.py
 | vol | mean over K paths of the std (ddof=1) of per-bar log returns | std of real per-bar log returns |
 | price | mean over K paths of the cumulative log return vs. anchor close | real cumulative log return |
 
+Evaluating magnitude, risk or direction on your own data? See [docs/EVALUATION.md](docs/EVALUATION.md): which path statistic to use, fixed windows, cross-sectional ranking and calibration.
+
 #### (3) 💹 Your own backtest
 
 After inference over the whole validation set has finished (`results/infer_for_eval/raw/` is filled), if you are interested in real-world trading, we provide a backtest framework. Run the backtest directly on it:
