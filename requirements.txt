@@ -2,5 +2,7 @@ torch>=2.4
 numpy
 pandas
 pyarrow
+pyyaml       # configs/*.yaml loaded by train.py / eval
 matplotlib   # plots written by eval/infer_for_pred.py and eval/backtest.py
 akshare      # only to download CSI500 for eval/backtest.py (optional)
+# flash-attn # optional: enables the "flash2" attention backend (needs sm80+)

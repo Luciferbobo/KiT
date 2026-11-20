@@ -1,8 +1,14 @@
-"""Data pipeline: candle features, normalization, and calendar utilities.
+"""Data pipeline: candle features, normalization, calendar, aggregation, dataset.
 
 - features:  candle features (r_gap/r_body/r_up/r_dn/v) and their inverse
 - normalize: per-bucket robust (MAD) scaling with tanh soft clipping
 - calendar:  trading calendar, per-bar calendar features, event tagging
+- io:        canonical OHLCV column handling
+- aggregate: fine -> coarse bar aggregation on the session grid
+- dataset:   (history + horizon) training windows
+
+``sampler`` and ``loader`` additionally depend on torch and are imported
+directly from their submodules by the training code.
 """
 
 from kit_v1.data.features import FEATURE_NAMES, compute_features, invert_features
@@ -26,6 +32,9 @@ from kit_v1.data.calendar import (
     gen_calendar,
     gen_future_timestamps,
 )
+from kit_v1.data.io import CANONICAL_COLUMNS, canon_ohlcv_columns, read_ohlcv
+from kit_v1.data.aggregate import aggregate_bars, aggregate_tree
+from kit_v1.data.dataset import KlineWindowDataset, WindowSample
 
 __all__ = [
     "FEATURE_NAMES",
@@ -47,4 +56,11 @@ __all__ = [
     "gen_future_timestamps",
     "detect_events",
     "attach_window_calendar",
+    "CANONICAL_COLUMNS",
+    "canon_ohlcv_columns",
+    "read_ohlcv",
+    "aggregate_bars",
+    "aggregate_tree",
+    "KlineWindowDataset",
+    "WindowSample",
 ]
