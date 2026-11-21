@@ -10,6 +10,7 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
 import time
 from dataclasses import dataclass
