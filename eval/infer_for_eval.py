@@ -78,8 +78,9 @@ def load_frames(data_root: Path, codes: list[str], scale: str,
 
 
 def run_anchor(model, frames, instruments, codes, scale, anchor, Lc, Lh, stats, cfg,
-               tdays, val_hi, k_paths, steps, chunk, seed, device):
+               tdays, val_hi, k_paths, steps, chunk, seed, device, cached):
     from kit_v1.infer import denormalize_paths, flow_sample, prepare_inference_window
+    from kit_v1.infer.cached_sampler import flow_sample_cached
 
     end = pd.Timestamp(anchor) + pd.Timedelta(hours=15)
     hi = pd.Timestamp(val_hi).normalize()
@@ -117,11 +118,31 @@ def run_anchor(model, frames, instruments, codes, scale, anchor, Lc, Lh, stats, 
     x = torch.cat([w["x_ctx"] for _, w, _, _ in wins], dim=0)
     cond = {k: torch.cat([w["cond"][k] for _, w, _, _ in wins], dim=0)
             for k in wins[0][1]["cond"]}
-    paths = flow_sample(
-        model, x, cond, Lh=Lh, steps=int(steps), solver="euler", n_paths=int(k_paths),
-        generator=torch.Generator().manual_seed(int(seed)), device=device,
-        chunk_size=int(chunk), precision="bf16",
-    )
+    flow_started = time.time()
+
+    def report_progress(done_steps, total_steps):
+        elapsed = time.time() - flow_started
+        eta = elapsed / done_steps * (total_steps - done_steps)
+        print(
+            f"  {scale} {anchor} steps {done_steps:02d}/{total_steps} "
+            f"elapsed={fmt_dur(elapsed)} eta={fmt_dur(eta)} "
+            f"stocks={len(wins)} K={k_paths}",
+            flush=True,
+        )
+
+    generator = torch.Generator().manual_seed(int(seed))
+    if cached:
+        paths = flow_sample_cached(
+            model, x, cond, Lh=Lh, steps=int(steps), n_paths=int(k_paths),
+            generator=generator, device=device, precision="bf16",
+            progress=report_progress, chunk_size=int(chunk),
+        )
+    else:
+        paths = flow_sample(
+            model, x, cond, Lh=Lh, steps=int(steps), solver="euler", n_paths=int(k_paths),
+            generator=generator, device=device,
+            chunk_size=int(chunk), precision="bf16", progress=report_progress,
+        )
     feats = denormalize_paths(paths, MARKET, scale, stats, c=cfg.data.soft_clip_c)  # [N,K,Lh,5]
     ohlcv = ["open", "high", "low", "close", "volume"]
     return {
@@ -177,9 +198,12 @@ def main() -> None:
     ap.add_argument("--max-anchors", type=int, default=0, help="take at most the first N anchors per scale, 0 = all (for smoke tests)")
     ap.add_argument("--paths", type=int, default=16, help="number of sampled paths K per sample")
     ap.add_argument("--steps", type=int, default=32, help="number of Euler integration steps")
+    ap.add_argument("--cached", action="store_true", help="use the cached-context distilled sampler")
     ap.add_argument("--chunk", type=int, default=0,
                     help="forward batch chunk size (sequences). 0=auto by GPU memory (8GB:16, 16GB:48, 40GB:128, 70GB+:256)")
     ap.add_argument("--max-inst", type=int, default=0, help="take only the first N instruments, 0 = all (for smoke tests)")
+    ap.add_argument("--inst-shard", default="0/1",
+                    help="shard i/n: run every n-th instrument on one GPU; useful for one-anchor dual-GPU timing")
     ap.add_argument("--shard", default="0/1",
                     help="shard i/n: split all anchor jobs into n cost-balanced parts; this process runs only part i (for multi-GPU)")
     ap.add_argument("--seed", type=int, default=0)
@@ -201,6 +225,11 @@ def main() -> None:
              if (data_root / MARKET / "1d" / f"{c}.parquet").is_file()]
     if args.max_inst > 0:
         codes = codes[: args.max_inst]
+    ii, inn = (int(x) for x in args.inst_shard.split("/"))
+    if inn < 1 or ii < 0 or ii >= inn:
+        raise SystemExit(f"invalid --inst-shard {args.inst_shard!r}")
+    if inn > 1:
+        codes = [code for index, code in enumerate(codes) if index % inn == ii]
     if not codes:
         raise SystemExit(f"{data_root} has no usable instruments")
 
@@ -209,7 +238,9 @@ def main() -> None:
         raise SystemExit("CUDA requested, but torch.cuda.is_available() is False")
 
     t0 = time.time()
-    model, cfg = load_model_and_config(str(args.ckpt), "tiny", args.seed)
+    model, cfg = load_model_and_config(
+        str(args.ckpt), "tiny", args.seed, device=device
+    )
     model.to(device).eval()
     stats = load_stats(data_root / "stats.json")
     tdays = load_trading_days(data_root / "trade_dates.csv")
@@ -252,7 +283,8 @@ def main() -> None:
         "ckpt": _rel(args.ckpt), "ckpt_name": args.ckpt.name, "data_root": _rel(data_root),
         "market": MARKET, "codes": codes, "scales": scales,
         "val_lo": args.val_lo, "val_hi": args.val_hi, "anchor_stride": args.anchor_stride,
-        "k_paths": K, "steps": S, "solver": "euler", "precision": "bf16",
+        "k_paths": K, "steps": S, "solver": "cached_euler" if args.cached else "euler",
+        "precision": "bf16",
         "seed": args.seed, "train_end": cfg.data.train_end, "val_start": cfg.data.val_start,
         "n_jobs_this_shard": len(jobs), "shard": args.shard, "device": str(device),
         "device_type": device.type,
@@ -280,7 +312,7 @@ def main() -> None:
         seed = args.seed + 10007 * (SCALES.index(scale) + 1) + ai
         t1 = time.time()
         row = run_anchor(model, frames, instruments, codes, scale, anchor, Lc, Lh, stats, cfg,
-                         tdays, args.val_hi, K, S, args.chunk, seed, device)
+                         tdays, args.val_hi, K, S, args.chunk, seed, device, args.cached)
         if row is None:
             print(f"[{ji}/{len(jobs)}] {scale} {anchor} no valid samples, skipped", flush=True)
             continue

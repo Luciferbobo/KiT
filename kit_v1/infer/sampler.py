@@ -7,7 +7,7 @@ only the target part is updated.
 from __future__ import annotations
 
 import contextlib
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import torch
 
@@ -93,6 +93,7 @@ def flow_sample(
     device: Optional[torch.device] = None,
     chunk_size: int = 256,
     precision: str = "fp32",
+    progress: Optional[Callable[[int, int], None]] = None,
 ) -> torch.Tensor:
     """Sample n_paths future paths per window, in normalized feature space.
 
@@ -210,5 +211,7 @@ def flow_sample(
             z_e = z_tgt - dt * v1
             v2 = velocity(z_e, t_next)
             z_tgt = z_tgt - dt * 0.5 * (v1 + v2)
+        if progress is not None:
+            progress(i + 1, steps)
 
     return z_tgt.view(B, K, Lh, F)
