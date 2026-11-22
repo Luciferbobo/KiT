@@ -238,7 +238,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0, help="random seed; case i uses seed+i")
     ap.add_argument("--device", help="default: CUDA if available, otherwise CPU; --apple-fp32 selects MPS")
     ap.add_argument("--apple-fp32", action="store_true",
-                    help="use the Apple silicon FP32 sampler for supported KiT-L daily windows")
+                    help="use the Apple silicon FP32 sampler for supported KiT windows at any timescale")
     ap.add_argument("--apple-cpu-paths", type=int, metavar="N",
                     help="CPU paths per full group of 16 with --apple-fp32 (0–16; default: 4)")
     args = ap.parse_args()

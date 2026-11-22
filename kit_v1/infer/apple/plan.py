@@ -1,4 +1,4 @@
-"""Prepack one immutable FP32 KiT-L model and sample independent Euler paths."""
+"""Prepack one immutable FP32 KiT model and sample independent Euler paths."""
 
 from dataclasses import dataclass
 
@@ -56,23 +56,26 @@ def _project(x, weight):
 
 
 class TorchPlan:
-    """Per-device weights and operations for an immutable eval-mode KiT-L model."""
+    """Per-device weights and operations for an immutable eval-mode KiT model."""
 
     def __init__(self, model, cpu_ops=None):
         self.device = next(model.parameters()).device
         if (
             model.training
-            or (model.cfg.d_model, model.cfg.n_heads) != (1024, 8)
+            or model.cfg.n_heads < 1
+            or model.cfg.d_model != 128 * model.cfg.n_heads
             or not model.blocks
         ):
             raise ValueError(
-                "The Apple plan requires an eval-mode model with width 1024 and eight heads"
+                "The Apple plan requires an eval-mode model with 128-dimensional attention heads"
             )
         if any(p.device != self.device or p.dtype != torch.float32 for p in model.parameters()):
             raise ValueError("The Apple plan requires FP32 weights on one device")
         for block in model.blocks:
-            if (block.attn.n_heads, block.attn.head_dim) != (8, 128):
-                raise ValueError("The Apple kernels require eight 128-dimensional heads")
+            if (block.attn.n_heads, block.attn.head_dim) != (model.cfg.n_heads, 128):
+                raise ValueError(
+                    "Attention heads must match the configured count and have 128 channels"
+                )
             norms = (block.attn.q_norm, block.attn.k_norm)
             if any(
                 n is None
@@ -101,7 +104,7 @@ class TorchPlan:
 
         self.gpu = self.device.type == "mps"
         if self.gpu:
-            self.ops = metal_ops()
+            self.ops = metal_ops(model.cfg.d_model)
         elif self.device.type == "cpu" and cpu_ops is not None:
             self.ops = cpu_ops
         else:

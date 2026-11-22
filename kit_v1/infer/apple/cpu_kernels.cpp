@@ -1,4 +1,4 @@
-// KiT-L inference kernels. Each worker owns complete rows of its outputs.
+// KiT inference kernels. Each worker owns complete rows of its outputs.
 #include <Accelerate/Accelerate.h>
 #include <arm_neon.h>
 #include <dispatch/dispatch.h>
@@ -9,7 +9,6 @@
 
 namespace {
 constexpr size_t kHeadDim = 128;
-constexpr size_t kModelDim = 1024;
 constexpr size_t kWorkers = 4;
 
 void parallel_rows(size_t rows, void (^run)(size_t, size_t)) {
@@ -68,16 +67,17 @@ extern "C" void kit_qk_rope(const float *qkv, const float *qw, const float *kw, 
 extern "C" void kit_gate_norm(const float *input, const float *delta, const float *context_gate,
                               const float *target_gate, const float *context_norm,
                               const float *target_norm, float *residual, float *hidden, size_t rows,
-                              size_t sequence, size_t prefix, size_t gate_offset, size_t norm_offset) {
+                              size_t sequence, size_t width, size_t prefix, size_t gate_offset,
+                              size_t norm_offset) {
     parallel_rows(rows, ^(size_t begin, size_t end) {
       for (size_t row = begin; row < end; ++row) {
           const bool context = row % sequence < prefix;
-          const float *gate = (context ? context_gate : target_gate) + gate_offset * kModelDim;
-          const float *shift = (context ? context_norm : target_norm) + norm_offset * kModelDim;
-          const float *scale = shift + kModelDim;
-          const size_t base = row * kModelDim;
+          const float *gate = (context ? context_gate : target_gate) + gate_offset * width;
+          const float *shift = (context ? context_norm : target_norm) + norm_offset * width;
+          const float *scale = shift + width;
+          const size_t base = row * width;
           float32x4_t sums[4] = {};
-          for (size_t i = 0; i < kModelDim; i += 16) {
+          for (size_t i = 0; i < width; i += 16) {
               for (size_t lane = 0; lane < 4; ++lane) {
                   const size_t j = i + lane * 4;
                   const auto update = vmulq_f32(vld1q_f32(delta + base + j), vld1q_f32(gate + j));
@@ -86,8 +86,8 @@ extern "C" void kit_gate_norm(const float *input, const float *delta, const floa
                   sums[lane] = vaddq_f32(sums[lane], vmulq_f32(z, z));
               }
           }
-          const float inv_rms = 1.f / std::sqrt(sum_lanes(sums) / kModelDim + 1e-6f);
-          for (size_t j = 0; j < kModelDim; j += 4) {
+          const float inv_rms = 1.f / std::sqrt(sum_lanes(sums) / static_cast<float>(width) + 1e-6f);
+          for (size_t j = 0; j < width; j += 4) {
               const auto z = vmulq_n_f32(vld1q_f32(residual + base + j), inv_rms);
               const auto gain = vaddq_f32(vdupq_n_f32(1.f), vld1q_f32(scale + j));
               vst1q_f32(hidden + base + j, vaddq_f32(vmulq_f32(z, gain), vld1q_f32(shift + j)));
@@ -105,13 +105,20 @@ extern "C" void kit_swiglu(const float *packed, float *output, size_t rows, size
           const float *up = gate + width;
           for (size_t i = 0; i < width; i += block) {
               const int count = static_cast<int>(std::min(block, width - i));
-              for (int j = 0; j < count; j += 4)
+              const int vector_end = count - count % 4;
+              for (int j = 0; j < vector_end; j += 4)
                   vst1q_f32(negative + j, vnegq_f32(vld1q_f32(gate + i + j)));
+              for (int j = vector_end; j < count; ++j)
+                  negative[j] = -gate[i + j];
               vvexpf(exponential, negative, &count);
-              for (int j = 0; j < count; j += 4) {
+              for (int j = 0; j < vector_end; j += 4) {
                   const auto denominator = vaddq_f32(vdupq_n_f32(1.f), vld1q_f32(exponential + j));
                   const auto silu = vdivq_f32(vld1q_f32(gate + i + j), denominator);
                   vst1q_f32(output + row * width + i + j, vmulq_f32(silu, vld1q_f32(up + i + j)));
+              }
+              for (int j = vector_end; j < count; ++j) {
+                  const float silu = gate[i + j] / (1.f + exponential[j]);
+                  output[row * width + i + j] = silu * up[i + j];
               }
           }
       }

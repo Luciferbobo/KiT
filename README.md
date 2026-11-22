@@ -483,15 +483,17 @@ python eval/infer_for_pred.py
 python eval/infer_for_pred.py --case 601899.SH,5m,2026-03-04 --case 300750.SZ,30m,"2026-03-10 11:30"
 ```
 
-On Apple silicon, opt in to FP32 acceleration for KiT-L daily forecasts:
+On Apple silicon, use `--apple-fp32` for intraday or daily forecasts:
 
 ```bash
-python eval/infer_for_pred.py --apple-fp32 --case 300368.SZ,1d,2026-01-05 --paths 16 --steps 32 --seed 6
+python eval/infer_for_pred.py --apple-fp32 --case 300591.SZ,5m,2026-01-23 --case 300368.SZ,1d,2026-01-05 --paths 16 --steps 32 --seed 6
 ```
 
-The Metal kernels require a PyTorch build with `torch.mps.compile_shader` (tested with PyTorch 2.15.0). The optimized sampler supports one complete 250-bar daily window, a 20-bar horizon, Euler integration and guidance weights of 1. Other cases use the regular MPS sampler. Each full group of 16 independent paths uses up to four CPU paths and runs the rest on the GPU. `--apple-cpu-paths 0` selects GPU-only execution. Native CPU operations are optional and compile on first use with Apple's C++ compiler. Without them the optimized sampler uses the GPU. The selected backend and actual path counts are recorded in `infer_meta.json`.
+Each case uses its checkpoint's configured history and forecast lengths. The sampler handles all seven KiT timescales and the model widths used by the S, M and L configurations. It accelerates one complete window at a time using FP32, Euler integration and guidance weights of 1. The sampler delegates padded inputs, other solver settings and incompatible kernels to the regular MPS sampler. The prediction CLI applies its usual history and trading-calendar checks before sampling.
 
-For a short, paired FP32 comparison on the bundled daily example, run `python scripts/benchmark_apple_fp32.py`. The default benchmark times one Euler step after warm-up. Use `--steps 32` to time a complete forecast.
+The Metal kernels require `torch.mps.compile_shader` (tested with PyTorch 2.15.0). By default, four paths in each full group of 16 run on the CPU and the rest run on the GPU. Use `--apple-cpu-paths 0` for GPU-only execution. The optional native CPU operations compile on first use with Apple's C++ compiler. Without them the optimized sampler uses the GPU. `infer_meta.json` records the backend and actual path counts per case.
+
+Run `python scripts/benchmark_apple_fp32.py` for a paired one-step comparison on the daily demo, or select another scale with `--case 300591.SZ,5m,2026-01-23`. Add `--steps 32` to time a complete forecast. The benchmark reports numerical differences and exits with an error if an output exceeds its FP32 comparison tolerances. Differences in reduction order or path batching can grow over successive Euler steps.
 
 Outputs go to `results/infer_for_pred/`. Plot legend: grey candles = tail of the history; red/green = real future; blue/purple = representative predicted path; blue bands = q05–q95 and q25–q75 of the K paths' close.
 

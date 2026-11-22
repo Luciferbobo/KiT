@@ -7,7 +7,6 @@ from threading import RLock
 
 import torch
 
-from kit_v1.data.calendar import TIMESCALE_IDS
 from kit_v1.infer.sampler import flow_sample
 
 from .metal import kernels_available
@@ -29,23 +28,47 @@ def _copy_model(model, device):
 def _supports_model(model):
     cfg = model.cfg
     return (
-        cfg.d_model,
-        cfg.n_heads,
-        cfg.n_registers,
-        cfg.ffn_hidden,
-        cfg.in_features,
-    ) == (1024, 8, 4, 2816, 5) and all(b.attn.backend == "sdpa" for b in model.blocks)
+        cfg.n_heads > 0
+        and cfg.d_model == 128 * cfg.n_heads
+        and cfg.ffn_hidden > 0
+        and all(b.attn.backend == "sdpa" for b in model.blocks)
+    )
 
 
-def _supports_window(history, cond, horizon):
-    if history.shape != (1, 250, 5) or history.dtype != torch.float32 or horizon != 20:
+def _supports_window(history, cond, horizon, cfg, path_batch):
+    # The CLI chooses Lc and Lh from the checkpoint's data.window_for(scale).
+    # The kernels only need a single dense window and aligned calendar tensors.
+    if history.ndim != 3 or history.dtype != torch.float32 or horizon <= 0:
         return False
-    scale = cond["scale"]
-    if scale.shape != (1,) or scale.item() != TIMESCALE_IDS["1d"]:
+    batch, context, width = history.shape
+    if batch != 1 or context <= 0 or width != cfg.in_features:
         return False
+    tokens = context + horizon
+    # Metal indexes packed QKV and gate/up tensors in float elements with uint offsets.
+    max_elements = (
+        path_batch * (tokens + cfg.n_registers) * max(3 * cfg.d_model, 2 * cfg.ffn_hidden)
+    )
+    if max_elements > 2**32:
+        return False
+    for key in ("clock", "sess", "yday", "dow", "event", "month"):
+        value = cond.get(key)
+        ndim = 3 if key in ("clock", "sess", "yday") else 2
+        if (
+            not isinstance(value, torch.Tensor)
+            or value.ndim != ndim
+            or value.shape[:2] != (batch, tokens)
+        ):
+            return False
+    for key in ("scale", "market", "sector", "inst"):
+        value = cond.get(key)
+        if not isinstance(value, torch.Tensor) or value.shape != (batch,):
+            return False
     mask = cond.get("pad_mask")
-    return cond["clock"].shape[:2] == (1, 270) and (
-        mask is None or (mask.dtype == torch.bool and mask.shape == (1, 270) and bool(mask.all()))
+    return mask is None or (
+        isinstance(mask, torch.Tensor)
+        and mask.dtype == torch.bool
+        and mask.shape == (batch, tokens)
+        and bool(mask.all())
     )
 
 
@@ -102,19 +125,19 @@ class AppleSampler:
         with self._lock:
             if self._closed:
                 raise RuntimeError("This AppleSampler has been closed")
+            batch = min(16, chunk_size, n_paths)
             if (
                 self._eligible
                 and solver == "euler"
                 and cfg_w == hist_cfg_w == 1.0
                 and precision == "fp32"
                 and min(steps, n_paths, chunk_size) > 0
-                and _supports_window(x_ctx, cond, Lh)
-                and kernels_available()
+                and _supports_window(x_ctx, cond, Lh, self.model.cfg, batch)
+                and kernels_available(self.model.cfg.d_model)
                 and torch.get_default_dtype() == torch.float32
                 and not torch.is_autocast_enabled("mps")
                 and not torch.is_autocast_enabled("cpu")
             ):
-                batch = min(16, chunk_size)
                 try:
                     split = self._prepare_plans(n_paths, batch)
                 except ValueError:

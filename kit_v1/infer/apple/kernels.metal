@@ -78,7 +78,7 @@ kernel void packed_f32(device const float* input, device float* output, constant
 
 // Update the residual, then apply the following sublayer's RMSNorm and AdaLN
 // using the same row in registers. Context and target tokens have distinct modulation.
-kernel void gated_norm_1024(
+kernel void gated_norm(
     device const float* x, device const float* delta,
     device const float* gate_ctx, device const float* gate_target,
     device const float* norm_ctx, device const float* norm_target,
@@ -86,21 +86,23 @@ kernel void gated_norm_1024(
     constant long& sequence, constant long& context_length,
     constant long& gate_offset, constant long& norm_offset,
     uint tid [[thread_position_in_grid]], uint lane [[thread_index_in_simdgroup]]) {
-    const uint row = tid / 32, base = row * 1024;
+    constexpr uint width = KIT_MODEL_WIDTH;
+    constexpr uint values_per_lane = width / 32;
+    const uint row = tid / 32, base = row * width;
     const bool context = row % uint(sequence) < uint(context_length);
-    device const float* gate = (context ? gate_ctx : gate_target) + uint(gate_offset) * 1024;
-    device const float* shift = (context ? norm_ctx : norm_target) + uint(norm_offset) * 1024;
-    float values[32], squares = 0.f;
-    for (uint j = 0; j < 32; ++j) {
+    device const float* gate = (context ? gate_ctx : gate_target) + uint(gate_offset) * width;
+    device const float* shift = (context ? norm_ctx : norm_target) + uint(norm_offset) * width;
+    float values[values_per_lane], squares = 0.f;
+    for (uint j = 0; j < values_per_lane; ++j) {
         const uint i = lane + j * 32;
         const float value = x[base + i] + delta[base + i] * gate[i];
         values[j] = value;
         squares += value * value;
     }
-    const float inv = rsqrt(simd_sum(squares) / 1024.f + 1e-6f);
-    for (uint j = 0; j < 32; ++j) {
+    const float inv = rsqrt(simd_sum(squares) / float(width) + 1e-6f);
+    for (uint j = 0; j < values_per_lane; ++j) {
         const uint i = lane + j * 32;
         saved[base + i] = values[j];
-        normalized[base + i] = (values[j] * inv) * (1.f + shift[1024 + i]) + shift[i];
+        normalized[base + i] = (values[j] * inv) * (1.f + shift[width + i]) + shift[i];
     }
 }

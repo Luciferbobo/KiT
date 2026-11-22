@@ -1,24 +1,29 @@
-"""Metal operations for the FP32 KiT-L inference plan."""
+"""Metal operations for the FP32 KiT inference plan."""
 
 from functools import cache
+from operator import index
 from pathlib import Path
 
 import torch
 
 
 @cache
-def metal_ops():
-    return MetalOps()
+def _compiled_ops(width):
+    return MetalOps(width)
+
+
+def metal_ops(width=1024):
+    return _compiled_ops(index(width))
 
 
 @cache
-def kernels_available():
+def kernels_available(width=1024):
     """Check the compiled pipelines before selecting the optimized sampler."""
     try:
         if not torch.backends.mps.is_available():
             return False
-        metal_ops()
-    except (AttributeError, OSError, RuntimeError):
+        metal_ops(width)
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return False
     return True
 
@@ -28,13 +33,15 @@ def _supports_reduction(kernel):
 
 
 class MetalOps:
-    def __init__(self):
+    def __init__(self, width=1024):
+        self.width = index(width)
+        if self.width <= 0 or self.width % 32:
+            raise ValueError("The fused Metal RMSNorm needs a positive width divisible by 32")
         try:
-            library = torch.mps.compile_shader(
-                Path(__file__).with_name("kernels.metal").read_text()
-            )
+            source = Path(__file__).with_name("kernels.metal").read_text()
+            library = torch.mps.compile_shader(f"#define KIT_MODEL_WIDTH {self.width}u\n" + source)
             self._qk = library.kit_qknorm_rope128
-            self._gate_norm = library.gated_norm_1024
+            self._gate_norm = library.gated_norm
             self._silu = library.packed_f32
             if not (_supports_reduction(self._qk) and _supports_reduction(self._gate_norm)):
                 raise RuntimeError("KiT's Metal reductions require 32-lane SIMD groups")
@@ -59,6 +66,8 @@ class MetalOps:
         return out
 
     def gate_norm(self, x, delta, gate, norm, prefix, gate_offset, norm_offset):
+        if x.shape[-1] != self.width:
+            raise ValueError("Residual width differs from the compiled Metal RMSNorm")
         residual = torch.empty_like(x)
         hidden = torch.empty_like(x)
         self._gate_norm(

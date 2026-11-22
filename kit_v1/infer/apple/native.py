@@ -1,4 +1,4 @@
-"""Optional FP32 inference operators for KiT-L on Apple Silicon."""
+"""Optional FP32 inference operators for KiT on Apple Silicon."""
 
 import ctypes
 import hashlib
@@ -28,7 +28,7 @@ def _bind(path):
     ptr, size = ctypes.c_void_p, ctypes.c_size_t
     for name, types in (
         ("kit_qk_rope", [ptr] * 7 + [size] * 3 + [ctypes.c_float]),
-        ("kit_gate_norm", [ptr] * 8 + [size] * 5),
+        ("kit_gate_norm", [ptr] * 8 + [size] * 6),
         ("kit_swiglu", [ptr] * 2 + [size] * 2),
     ):
         fn = getattr(lib, name)
@@ -133,14 +133,17 @@ class _CPUOps:
         gc, gt = gate
         nc, nt = norm
         if (
-            width != 1024
+            width <= 0
+            or width % 16 != 0
             or delta.shape != x.shape
             or not 0 <= prefix <= sequence
             or gate_offset not in (2, 5)
             or norm_offset not in (0, 3)
             or any(v.shape != (6 * width,) for v in (gc, gt, nc, nt))
         ):
-            raise ValueError("Unexpected KiT-L residual or modulation shape or offset")
+            raise ValueError(
+                "Expected a positive multiple-of-16 feature width and compatible KiT residual/modulation inputs"
+            )
         pointers = _pointers(x, delta, gc, gt, nc, nt)
         residual, hidden = torch.empty_like(x), torch.empty_like(x)
         self._lib.kit_gate_norm(
@@ -149,6 +152,7 @@ class _CPUOps:
             hidden.data_ptr(),
             batch * sequence,
             sequence,
+            width,
             prefix,
             gate_offset,
             norm_offset,
@@ -157,8 +161,8 @@ class _CPUOps:
 
     def silu(self, packed):
         batch, sequence, size = packed.shape
-        if size % 8:
-            raise ValueError("Packed SwiGLU requires a half-width divisible by four")
+        if size == 0 or size % 2:
+            raise ValueError("Packed SwiGLU requires equal, nonempty gate and up projections")
         pointers = _pointers(packed)
         width = size // 2
         out = packed.new_empty((batch, sequence, width))
