@@ -36,6 +36,8 @@ import json
 import math
 import sys
 import time
+from contextlib import ExitStack
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -234,9 +236,27 @@ def main() -> None:
                     help="forward precision, default bf16 on CUDA (same as infer_for_eval), fp32 on CPU")
     ap.add_argument("--chunk", type=int, default=0, help="forward batch chunk size (sequences), 0=auto by GPU memory")
     ap.add_argument("--seed", type=int, default=0, help="random seed; case i uses seed+i")
-    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--device", help="default: CUDA if available, otherwise CPU; --apple-fp32 selects MPS")
+    ap.add_argument("--apple-fp32", action="store_true",
+                    help="use the Apple silicon FP32 sampler for supported KiT windows at any timescale")
+    ap.add_argument("--apple-cpu-paths", type=int, metavar="N",
+                    help="CPU paths per full group of 16 with --apple-fp32 (0–16; default: 4)")
     args = ap.parse_args()
+    if args.apple_cpu_paths is not None and (not args.apple_fp32 or not 0 <= args.apple_cpu_paths <= 16):
+        ap.error("--apple-cpu-paths requires --apple-fp32 and an integer from 0 to 16")
+    if args.apple_fp32 and args.precision not in (None, "fp32"):
+        ap.error("--apple-fp32 requires FP32 precision")
+    if args.device is None:
+        args.device = "mps" if args.apple_fp32 else ("cuda" if torch.cuda.is_available() else "cpu")
+    if args.apple_fp32 and (torch.device(args.device) not in (torch.device("mps"), torch.device("mps:0"))
+                            or not torch.backends.mps.is_available()):
+        ap.error("--apple-fp32 requires an available MPS device")
 
+    with ExitStack() as resources:
+        run_cases(args, resources)
+
+
+def run_cases(args, resources):
     cases = [parse_case(c) for c in (args.case or DEFAULT_CASES)]
     ctx_req = parse_len_table(args.ctx_len, "--ctx-len")
     pred_req = parse_len_table(args.pred_len, "--pred-len")
@@ -261,7 +281,7 @@ def main() -> None:
     if tdays is None:
         raise SystemExit(f"missing trading-day table: {data_root / 'trade_dates.csv'}")
 
-    model, cfg = load_model_and_config(str(args.ckpt), "tiny", args.seed)
+    model, cfg = load_model_and_config(str(args.ckpt), "tiny", args.seed, mmap=args.apple_fp32)
 
     # validate all cases before loading weights
     plans = []
@@ -277,7 +297,15 @@ def main() -> None:
         hist, fut = load_case_frame(data_root, code_, scale, end, Lc, Lh, keep)
         plans.append((code_, scale, end, Lc, Lh, hist, fut))
 
-    model.to(device).eval()
+    apple = None
+    apple_runs = []
+    if args.apple_fp32:
+        from kit_v1.infer.apple import AppleSampler
+        cpu_paths = args.apple_cpu_paths if args.apple_cpu_paths is not None else 4
+        apple = resources.enter_context(AppleSampler(model.eval(), cpu_paths=cpu_paths))
+        sample = apple.sample
+    else:
+        sample = partial(flow_sample, model.to(device).eval(), device=device)
     args.out.mkdir(parents=True, exist_ok=True)
     print(f"device={device} precision={precision} K={args.paths} steps={args.steps} solver={args.solver} "
           f"cfg_w={args.cfg_w} hist_cfg_w={args.hist_cfg_w} ckpt={args.ckpt.name}", flush=True)
@@ -298,11 +326,13 @@ def main() -> None:
             raise SystemExit(
                 f"{code_} {scale} anchor {end}: timestamps of the real following bars differ from the calendar projection (possible suspension/missing bars in the range); "
                 "this window is unsuitable for prediction, choose another anchor")
-        paths = flow_sample(
-            model, win["x_ctx"], win["cond"], Lh=Lh, steps=args.steps, solver=args.solver,
+        paths = sample(
+            win["x_ctx"], win["cond"], Lh=Lh, steps=args.steps, solver=args.solver,
             n_paths=args.paths, cfg_w=args.cfg_w, hist_cfg_w=args.hist_cfg_w,
-            generator=torch.Generator().manual_seed(args.seed + i), device=device,
+            generator=torch.Generator().manual_seed(args.seed + i),
             chunk_size=args.chunk, precision=precision)
+        if apple is not None:
+            apple_runs.append(apple.last_run)
         feats = denormalize_paths(paths, MARKET, scale, stats, c=cfg.data.soft_clip_c)[0]   # [K,Lh,5]
         pred = paths_to_ohlcv(feats, win["prev_close"], win["prev_ema"], win["half_life_bars"])
         pred = {k: np.asarray(v) for k, v in pred.items()}
@@ -349,6 +379,7 @@ def main() -> None:
         "k_paths": args.paths, "steps": args.steps, "solver": args.solver, "precision": precision,
         "cfg_w": args.cfg_w, "hist_cfg_w": args.hist_cfg_w, "seed": args.seed, "device": str(device),
         "device_type": device.type,
+        **({"apple_inference": apple_runs} if apple is not None else {}),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if args.plot:
