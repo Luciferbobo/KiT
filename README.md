@@ -10,6 +10,7 @@
 </a>
 <a href="./assets/group_qr.jpg"><img src="https://img.shields.io/badge/WeChat-KiT Group-07C160?logo=wechat&logoColor=white" alt="WeChat"></a>
 <a href="https://trading.etfnav.org/?lang=en"><img src="https://img.shields.io/badge/Live_Prediction-Demo-2563EB" alt="Live Prediction"></a>
+<a href="https://gaodong.ai/kit/1-start/00-hub"><img src="https://img.shields.io/badge/Tutorial-Step_by_step-F59E0B" alt="Step-by-step tutorial"></a>
 </div>
 
 
@@ -367,6 +368,8 @@ Table 2. RankIC of Volatility prediction
 
 
 ## 🚀 Get started
+
+> 📚 New to KiT? A free step-by-step course walks through installation, inference, training a small model, fine-tuning, and reading the paper: [gaodong.ai/kit](https://gaodong.ai/kit/1-start/00-hub) (Chinese, with an [English version](https://gaodong.ai/en/kit/1-start/00-hub)).
 
 ### 1. Setup
 
